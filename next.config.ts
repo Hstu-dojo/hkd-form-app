@@ -1,17 +1,17 @@
 import type { NextConfig } from "next";
 
-const isProd = process.env.NODE_ENV === "production";
+const isGithubPages = process.env.GITHUB_PAGES === "true";
 const repoName = "/hkd-form-app";
 
 const nextConfig: NextConfig = {
-  output: "export",
-  basePath: isProd ? repoName : "",
-  assetPrefix: isProd ? `${repoName}/` : "",
+  ...(isGithubPages && { output: "export" }),
+  basePath: isGithubPages ? repoName : "",
+  assetPrefix: isGithubPages ? `${repoName}/` : "",
   images: {
     unoptimized: true,
   },
   env: {
-    NEXT_PUBLIC_BASE_PATH: isProd ? repoName : "",
+    NEXT_PUBLIC_BASE_PATH: isGithubPages ? repoName : "",
   },
 };
 
