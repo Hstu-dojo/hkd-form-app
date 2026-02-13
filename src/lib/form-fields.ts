@@ -460,16 +460,16 @@ export const PHOTO_BOX = {
 
 export const SIGNATURE_POSITIONS = {
   student: {
-    x: 150,
-    y: 100,
-    width: 150,
-    height: 50,
+    x: 35,
+    y: 59,
+    width: 115,
+    height: 46,
   },
-  parent: {
-    x: 150,
-    y: 50,
-    width: 150,
-    height: 50,
+  authority: {
+    x: 428,
+    y: 59,
+    width: 115,
+    height: 46,
   },
 };
 
