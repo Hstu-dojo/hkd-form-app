@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { PHOTO_BOX, SIGNATURE_POSITIONS, FORM_FIELDS } from "./form-fields";
+import { PHOTO_BOX, SIGNATURE_POSITIONS, FORM_FIELDS, FIELD_COORDS } from "./form-fields";
 
 // Base path for public assets (needed for GitHub Pages subpath deployment)
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -13,9 +13,42 @@ export interface ImageData {
 }
 
 /**
+ * Render text to a PNG data URL using the browser's Canvas API.
+ * This works for ALL scripts (Latin, Bengali, Arabic, etc.) because
+ * the browser has built-in font rendering and shaping support.
+ */
+function renderTextToImage(text: string, fieldWidth: number, fieldHeight: number): string {
+  const scale = 4; // High-res for crisp text in PDF
+  const fontSize = fieldHeight * 0.85; // Slightly smaller than field height
+  const canvasWidth = fieldWidth * scale;
+  const canvasHeight = fieldHeight * scale;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  // Transparent background
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  // Render text using system fonts — browser handles Bangla/Unicode natively
+  ctx.fillStyle = "#000000";
+  ctx.font = `${fontSize * scale}px "Noto Sans Bengali", "Noto Sans", Arial, sans-serif`;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 1 * scale, canvasHeight / 2);
+
+  return canvas.toDataURL("image/png");
+}
+
+/**
  * Fill the PDF form with text data and images, all client-side.
- * Uses the same approach as fillForm.js — setText + NeedAppearances
- * which lets the PDF viewer render all text including Bangla/Unicode.
+ *
+ * Strategy: Draw all text as canvas-rendered PNG images directly on the PDF page.
+ * This bypasses font/encoding issues entirely — the browser's Canvas API handles
+ * all scripts (Bangla, Latin, etc.) perfectly, and the resulting images work in
+ * every PDF viewer without depending on NeedAppearances support.
  */
 export async function fillPdfForm(
   formValues: FormData,
@@ -29,8 +62,9 @@ export async function fillPdfForm(
   const pdfDoc = await PDFDocument.load(pdfBytes);
   pdfDoc.registerFontkit(fontkit);
 
-  // Get the form
+  // Get the form and the first page
   const form = pdfDoc.getForm();
+  const page = pdfDoc.getPages()[0];
 
   // Build the PDF field data from form values
   const pdfFieldData: Record<string, string> = {};
@@ -41,25 +75,33 @@ export async function fillPdfForm(
     }
   }
 
-  // Fill ALL text fields (including Bangla — NeedAppearances handles Unicode rendering)
+  // Draw each field's text as a rendered image on the page
   for (const [fieldName, fieldValue] of Object.entries(pdfFieldData)) {
+    const coords = FIELD_COORDS[fieldName];
+    if (!coords) continue;
+
     try {
-      const textField = form.getTextField(fieldName);
-      textField.setText(fieldValue);
-    } catch {
-      console.warn(`Could not fill field: ${fieldName}`);
+      const pngDataUrl = renderTextToImage(fieldValue, coords.w, coords.h);
+      if (pngDataUrl) {
+        const pngBytes = dataUrlToUint8Array(pngDataUrl);
+        const pngImage = await pdfDoc.embedPng(pngBytes);
+        page.drawImage(pngImage, {
+          x: coords.x,
+          y: coords.y,
+          width: coords.w,
+          height: coords.h,
+        });
+      }
+    } catch (err) {
+      console.warn(`Could not render field ${fieldName}:`, err);
     }
   }
 
-  // Set NeedAppearances so PDF viewers generate appearances with their own fonts
-  // This is what makes Bangla/Unicode text render correctly in the PDF viewer
-  const acroFormDict = pdfDoc.catalog.lookup(pdfDoc.context.obj("AcroForm"));
-  if (acroFormDict) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (acroFormDict as any).set(
-      pdfDoc.context.obj("NeedAppearances"),
-      pdfDoc.context.obj(true)
-    );
+  // Remove form fields so they don't overlay the drawn text
+  try {
+    form.flatten();
+  } catch {
+    // Flatten may fail on some fields, that's OK — text images are already drawn
   }
 
   // Add photo image if provided
@@ -75,7 +117,6 @@ export async function fillPdfForm(
         image = await pdfDoc.embedJpg(photoBytes);
       }
 
-      const page = pdfDoc.getPages()[0];
       page.drawImage(image, {
         x: PHOTO_BOX.x,
         y: PHOTO_BOX.y,
@@ -100,7 +141,6 @@ export async function fillPdfForm(
         sigImage = await pdfDoc.embedJpg(sigBytes);
       }
 
-      const page = pdfDoc.getPages()[0];
       const pos = SIGNATURE_POSITIONS.student;
       page.drawImage(sigImage, {
         x: pos.x,
@@ -113,8 +153,8 @@ export async function fillPdfForm(
     }
   }
 
-  // Save the PDF
-  const filledPdfBytes = await pdfDoc.save({ updateFieldAppearances: false });
+  // Save the PDF (form is flattened, no field appearances needed)
+  const filledPdfBytes = await pdfDoc.save();
   return filledPdfBytes;
 }
 

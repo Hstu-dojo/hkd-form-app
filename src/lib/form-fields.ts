@@ -478,6 +478,46 @@ export const PAGE_DIMENSIONS = {
   height: 841.918,
 };
 
+// PDF field coordinates extracted from the actual PDF via pdf-lib getWidgets/getRectangle
+// These are used to draw text as images directly on the page (bypasses NeedAppearances issues)
+export const FIELD_COORDS: Record<string, { x: number; y: number; w: number; h: number }> = {
+  text_2gcgy:  { x: 193, y: 605, w: 364, h: 11 },
+  text_3zwog:  { x: 193, y: 584, w: 364, h: 11 },
+  text_4juqg:  { x: 193, y: 553, w: 228, h: 11 },
+  text_5eyrb:  { x: 193, y: 518, w: 229, h: 11 },
+  text_6qwqa:  { x: 193, y: 497, w: 364, h: 11 },
+  text_7rkjm:  { x: 193, y: 477, w: 364, h: 11 },
+  text_8qsa:   { x: 193, y: 456, w: 101, h: 11 },
+  text_9hslb:  { x: 193, y: 436, w: 102, h: 11 },
+  text_10itmk: { x: 193, y: 415, w: 103, h: 11 },
+  text_11eyhm: { x: 193, y: 394, w: 364, h: 11 },
+  text_12jovw: { x: 193, y: 374, w: 148, h: 11 },
+  text_13xzow: { x: 193, y: 353, w: 210, h: 11 },
+  text_14frao: { x: 193, y: 308, w: 364, h: 11 },
+  text_15nxit: { x: 193, y: 288, w: 364, h: 11 },
+  text_16hvzz: { x: 193, y: 267, w: 364, h: 11 },
+  text_17wput: { x: 193, y: 246, w: 97,  h: 11 },
+  text_18yymw: { x: 193, y: 205, w: 364, h: 11 },
+  text_19szou: { x: 193, y: 184, w: 364, h: 11 },
+  text_20wqom: { x: 194, y: 163, w: 364, h: 11 },
+  text_23aqm:  { x: 90,  y: 672, w: 93,  h: 11 },
+  text_24fdfi: { x: 239, y: 711, w: 180, h: 11 },
+  text_25csjw: { x: 279, y: 697, w: 96,  h: 11 },
+  text_26lzic: { x: 481, y: 553, w: 76,  h: 11 },
+  text_27orzd: { x: 481, y: 519, w: 76,  h: 11 },
+  text_28tdwn: { x: 319, y: 456, w: 101, h: 11 },
+  text_29lyqz: { x: 336, y: 436, w: 86,  h: 11 },
+  text_30ipgl: { x: 487, y: 456, w: 71,  h: 11 },
+  text_31mqrf: { x: 448, y: 436, w: 109, h: 11 },
+  text_32ijag: { x: 342, y: 414, w: 215, h: 11 },
+  text_33yqgf: { x: 378, y: 374, w: 178, h: 11 },
+  text_35dbko: { x: 448, y: 353, w: 108, h: 11 },
+  text_36rbtt: { x: 331, y: 246, w: 226, h: 11 },
+  text_37umsg: { x: 493, y: 225, w: 64,  h: 11 },
+  text_38egdr: { x: 66,  y: 25,  w: 84,  h: 11 },
+  text_39tajn: { x: 458, y: 25,  w: 84,  h: 11 },
+};
+
 // Image validation constants
 export const IMAGE_CONSTRAINTS = {
   photo: {
