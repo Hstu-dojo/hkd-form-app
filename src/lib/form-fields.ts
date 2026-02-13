@@ -450,9 +450,10 @@ export const FORM_FIELDS: FormFieldDef[] = [
 ];
 
 // Image positions for the PDF
+// y is flipped: pageHeight(841.918) - originalY(128.88) - height(90) = 623.04
 export const PHOTO_BOX = {
   x: 477.36,
-  y: 128.88,
+  y: 623.04,
   width: 83.52,
   height: 90,
 };
