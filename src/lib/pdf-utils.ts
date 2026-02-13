@@ -1,4 +1,4 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { PHOTO_BOX, SIGNATURE_POSITIONS, FORM_FIELDS } from "./form-fields";
 
@@ -24,17 +24,6 @@ export async function fillPdfForm(
   const pdfDoc = await PDFDocument.load(pdfBytes);
   pdfDoc.registerFontkit(fontkit);
 
-  // Embed a Bengali-supporting font for Bangla text fields
-  const bengaliFontUrl = "/NotoSansBengali-Regular.ttf";
-  const bengaliFontResponse = await fetch(bengaliFontUrl);
-  const bengaliFontBytes = await bengaliFontResponse.arrayBuffer();
-  const bengaliFont = await pdfDoc.embedFont(bengaliFontBytes, { subset: false });
-
-  // PDF field IDs that may contain Bangla/Bengali text
-  const BANGLA_FIELD_IDS = new Set(
-    FORM_FIELDS.filter((f) => f.id === "name_bn").map((f) => f.pdfFieldId)
-  );
-
   // Get the form
   const form = pdfDoc.getForm();
 
@@ -47,32 +36,19 @@ export async function fillPdfForm(
     }
   }
 
-  // Fill text fields
+  // Fill text fields (including Bangla — NeedAppearances lets the PDF viewer render Unicode)
   for (const [fieldName, fieldValue] of Object.entries(pdfFieldData)) {
     try {
       const textField = form.getTextField(fieldName);
-      if (BANGLA_FIELD_IDS.has(fieldName)) {
-        // Use Bengali font for Bangla fields so glyphs render correctly
-        textField.setText(fieldValue);
-        textField.updateAppearances(bengaliFont);
-      } else {
-        textField.setText(fieldValue);
-      }
+      textField.setText(fieldValue);
     } catch {
       console.warn(`Could not fill field: ${fieldName}`);
     }
   }
 
-  // Set NeedAppearances so PDF viewers generate appearances
-  const acroFormDict = pdfDoc.catalog.lookup(
-    pdfDoc.context.obj("AcroForm")
-  );
-  if (acroFormDict && typeof acroFormDict === "object" && "set" in acroFormDict) {
-    (acroFormDict as { set: (key: unknown, value: unknown) => void }).set(
-      pdfDoc.context.obj("NeedAppearances"),
-      pdfDoc.context.obj(true)
-    );
-  }
+  // Set NeedAppearances so PDF viewers regenerate field appearances
+  // This is critical for Unicode/Bangla text — the viewer uses its own fonts
+  form.acroForm.dict.set(PDFName.of("NeedAppearances"), pdfDoc.context.obj(true));
 
   // Add photo image if provided
   if (images.photo) {
