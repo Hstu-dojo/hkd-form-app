@@ -9,6 +9,49 @@ export interface ImageData {
   signature?: string; // base64 data URL
 }
 
+// Field coordinates from the actual PDF (extracted via pdf-lib getWidgets/getRectangle)
+// These are the positions where Bangla text will be drawn as an image
+const BANGLA_FIELD_COORDS: Record<string, { x: number; y: number; w: number; h: number }> = {
+  text_3zwog: { x: 193, y: 584, w: 364, h: 11 },
+};
+
+// Bangla form field IDs — these need special handling (rendered as image, not form text)
+const BANGLA_FIELD_IDS = new Set(
+  FORM_FIELDS.filter((f) => f.id === "name_bn").map((f) => f.pdfFieldId)
+);
+
+/**
+ * Render Bangla text to a PNG data URL using the browser's Canvas API.
+ * The browser has built-in Bengali font rendering support.
+ */
+function renderBanglaTextToImage(
+  text: string,
+  width: number,
+  fontSize: number = 10
+): string {
+  const scale = 3; // High-res for crisp text
+  const canvasWidth = width * scale;
+  const canvasHeight = Math.ceil(fontSize * 1.6 * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  // Transparent background
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  // Draw Bangla text using system fonts
+  ctx.fillStyle = "#000000";
+  ctx.font = `${fontSize * scale}px "Noto Sans Bengali", "Kalpurush", "SolaimanLipi", "Bangla", sans-serif`;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, canvasHeight / 2);
+
+  return canvas.toDataURL("image/png");
+}
+
 /**
  * Fill the PDF form with text data and images, all client-side
  */
@@ -27,16 +70,23 @@ export async function fillPdfForm(
   // Get the form
   const form = pdfDoc.getForm();
 
+  // Collect Bangla field values separately — they'll be drawn as images
+  const banglaValues: Record<string, string> = {};
+
   // Build the PDF field data from form values
   const pdfFieldData: Record<string, string> = {};
   for (const field of FORM_FIELDS) {
     const value = formValues[field.id];
     if (value !== undefined && value !== "") {
-      pdfFieldData[field.pdfFieldId] = value;
+      if (BANGLA_FIELD_IDS.has(field.pdfFieldId)) {
+        banglaValues[field.pdfFieldId] = value;
+      } else {
+        pdfFieldData[field.pdfFieldId] = value;
+      }
     }
   }
 
-  // Fill text fields (including Bangla — NeedAppearances lets the PDF viewer render Unicode)
+  // Fill regular (non-Bangla) text fields
   for (const [fieldName, fieldValue] of Object.entries(pdfFieldData)) {
     try {
       const textField = form.getTextField(fieldName);
@@ -46,8 +96,32 @@ export async function fillPdfForm(
     }
   }
 
+  // Draw Bangla text as images on the page
+  const page = pdfDoc.getPages()[0];
+  for (const [fieldId, text] of Object.entries(banglaValues)) {
+    const coords = BANGLA_FIELD_COORDS[fieldId];
+    if (!coords || !text) continue;
+
+    try {
+      const pngDataUrl = renderBanglaTextToImage(text, coords.w, coords.h);
+      if (pngDataUrl) {
+        const pngBytes = dataUrlToUint8Array(pngDataUrl);
+        const pngImage = await pdfDoc.embedPng(pngBytes);
+
+        // Draw the rendered text image at the field's position
+        page.drawImage(pngImage, {
+          x: coords.x,
+          y: coords.y,
+          width: coords.w,
+          height: coords.h,
+        });
+      }
+    } catch (err) {
+      console.error(`Error rendering Bangla field ${fieldId}:`, err);
+    }
+  }
+
   // Set NeedAppearances so PDF viewers regenerate field appearances
-  // This is critical for Unicode/Bangla text — the viewer uses its own fonts
   form.acroForm.dict.set(PDFName.of("NeedAppearances"), pdfDoc.context.obj(true));
 
   // Add photo image if provided
