@@ -24,6 +24,17 @@ export async function fillPdfForm(
   const pdfDoc = await PDFDocument.load(pdfBytes);
   pdfDoc.registerFontkit(fontkit);
 
+  // Embed a Bengali-supporting font for Bangla text fields
+  const bengaliFontUrl = "/NotoSansBengali-Regular.ttf";
+  const bengaliFontResponse = await fetch(bengaliFontUrl);
+  const bengaliFontBytes = await bengaliFontResponse.arrayBuffer();
+  const bengaliFont = await pdfDoc.embedFont(bengaliFontBytes, { subset: false });
+
+  // PDF field IDs that may contain Bangla/Bengali text
+  const BANGLA_FIELD_IDS = new Set(
+    FORM_FIELDS.filter((f) => f.id === "name_bn").map((f) => f.pdfFieldId)
+  );
+
   // Get the form
   const form = pdfDoc.getForm();
 
@@ -40,7 +51,13 @@ export async function fillPdfForm(
   for (const [fieldName, fieldValue] of Object.entries(pdfFieldData)) {
     try {
       const textField = form.getTextField(fieldName);
-      textField.setText(fieldValue);
+      if (BANGLA_FIELD_IDS.has(fieldName)) {
+        // Use Bengali font for Bangla fields so glyphs render correctly
+        textField.setText(fieldValue);
+        textField.updateAppearances(bengaliFont);
+      } else {
+        textField.setText(fieldValue);
+      }
     } catch {
       console.warn(`Could not fill field: ${fieldName}`);
     }
